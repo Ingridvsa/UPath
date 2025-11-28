@@ -6,6 +6,7 @@ from jose.exceptions import ExpiredSignatureError, JWTError
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.security import OAuth2PasswordBearer
 
 from app.db.session import get_db
 from app.core.config import settings
@@ -18,6 +19,10 @@ from app.schemas.auth import (
     ForgotPasswordOut,
     ResetPasswordIn,
     ResetPasswordOut,
+    UpdateProfileIn,
+    UpdateProfileOut,
+    AdminPinIn,
+    AdminPinOut,
 )
 from app.models.user import User, Role
 from app.core.security import (
@@ -27,6 +32,10 @@ from app.core.security import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login"  # caminho completo do login
+)
 
 RESET_TOKEN_EXPIRE_MINUTES = 30
 
@@ -183,3 +192,73 @@ async def reset_password(payload: ResetPasswordIn, db: AsyncSession = Depends(ge
         success=True,
         message="Senha redefinida com sucesso. Já pode fazer login com a nova senha.",
     )
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Não autenticado.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALG],
+        )
+        user_id: str | None = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user: User | None = result.scalar_one_or_none()
+
+    if not user or not user.is_active:
+        raise credentials_exception
+
+    return user
+
+
+@router.put("/me", response_model=UpdateProfileOut)
+async def update_me(
+    payload: UpdateProfileIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    algo_para_atualizar = False
+
+    # Atualiza nome se veio
+    if payload.nome is not None and payload.nome.strip():
+      current_user.nome = payload.nome.strip()
+      algo_para_atualizar = True
+
+    # Atualiza senha se veio
+    if payload.senha is not None and payload.senha.strip():
+      current_user.senha_hash = hash_password(payload.senha)
+      algo_para_atualizar = True
+
+    if not algo_para_atualizar:
+        return UpdateProfileOut(
+            success=True,
+            message="Nenhuma alteração enviada.",
+            data={"nome": current_user.nome, "email": current_user.email},
+        )
+
+    await db.commit()
+    await db.refresh(current_user)
+
+    return UpdateProfileOut(
+        success=True,
+        message="Perfil atualizado com sucesso.",
+        data={
+            "nome": current_user.nome,
+            "email": current_user.email,
+        },
+    )
+

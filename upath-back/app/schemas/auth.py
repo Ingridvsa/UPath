@@ -11,6 +11,8 @@ from pydantic import (
     ConfigDict,
 )
 
+from typing import Optional, Dict, Any
+
 NOME_RE = re.compile(r'^[A-Za-zÀ-ÿ\s]+$')
 SENHA_RE = re.compile(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$')
 
@@ -98,5 +100,22 @@ class ResetPasswordIn(BaseModel):
 
 
 class ResetPasswordOut(BaseModel):
+    success: bool = True
+    message: str
+
+class UpdateProfileIn(BaseModel):
+    nome: Optional[str] = None
+    senha: Optional[SenhaType] = None  # reutiliza as regras de senha forte
+
+class UpdateProfileOut(BaseModel):
+    success: bool = True
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+class AdminPinIn(BaseModel):
+    email: EmailStr
+    pin: str
+
+class AdminPinOut(BaseModel):
     success: bool = True
     message: str

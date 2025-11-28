@@ -5,6 +5,8 @@ import uuid
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Enum, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
+from typing import Optional
+from sqlalchemy import String, Enum, Boolean, DateTime
 
 from app.db.base import Base
 
@@ -31,7 +33,7 @@ class User(Base):
 
     # 'senha_hash' no código, 'hashed_password' na tabela
     senha_hash: Mapped[str] = mapped_column("hashed_password", String(255))
-
+ 
     # essa coluna ainda NÃO existe na tabela, vamos criar já já
     role: Mapped[Role] = mapped_column(Enum(Role), default=Role.student)
 

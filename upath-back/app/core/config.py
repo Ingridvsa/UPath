@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "uPath API"
     APP_ENV: str = "dev"
 
+    ADMIN_PIN: str = Field("1234", alias="ADMIN_PIN")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

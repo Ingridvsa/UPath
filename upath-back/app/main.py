@@ -8,6 +8,7 @@ if sys.platform.startswith("win"):
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.api.v1.routes import admin_reports
 
 # App principal
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -40,12 +41,7 @@ def safe_include(module_name):
 # ROTAS
 rotas = [
     "auth",
-    "admin_courses",
-    "admin_cutoff",
     "admin_reports",
-    "notifications",
-    "tests",
-    "simulations",
     "users",
 ]
 
