@@ -2,7 +2,6 @@
 import sys
 import asyncio
 
-# 🔥 Correção necessária para Windows + Psycopg Async funcionar
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -46,9 +45,8 @@ rotas = [
     "admin_reports",
     "notifications",
     "tests",
-    "simulation",
+    "simulations",
     "users",
-    "ia_proxy",
 ]
 
 for r in rotas:

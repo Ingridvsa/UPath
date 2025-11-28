@@ -5,7 +5,6 @@ from fastapi import HTTPException, status
 from app.models.user import User, Role
 from app.core.security import hash_password, verify_password, create_access_token
 
-
 async def register_user(payload, db: AsyncSession):
     exists = await db.execute(
         select(User.id).where(User.email == payload.email.lower())

@@ -1,14 +1,23 @@
 # app/api/v1/routes/auth.py
+from datetime import datetime, timedelta
+from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.core.config import settings
 from app.schemas.auth import (
     RegisterIn,
     RegisterOut,
     LoginIn,
     LoginOut,
+    ForgotPasswordIn,
+    ForgotPasswordOut,
+    ResetPasswordIn,
+    ResetPasswordOut,
 )
 from app.models.user import User, Role
 from app.core.security import (
@@ -18,6 +27,8 @@ from app.core.security import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+RESET_TOKEN_EXPIRE_MINUTES = 30
 
 
 # ---------- REGISTER ---------- #
@@ -84,3 +95,91 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
             "role": user.role.value,
         },
     }
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordOut)
+async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(User).where(User.email == payload.email.lower())
+    )
+    user: User | None = result.scalar_one_or_none()
+
+    if not user:
+        return ForgotPasswordOut(
+            success=True,
+            message="Se o e-mail estiver cadastrado, você receberá instruções para redefinir a senha.",
+            reset_token=None,
+        )
+
+    now = datetime.utcnow()
+    exp = now + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+
+    reset_token = jwt.encode(
+        {
+            "sub": str(user.id),
+            "scope": "password_reset",
+            "exp": exp,
+            "iat": now,
+        },
+        settings.JWT_SECRET,
+        algorithm=settings.JWT_ALG,
+    )
+
+    return ForgotPasswordOut(
+        success=True,
+        message="Se o e-mail estiver cadastrado, você receberá instruções para redefinir a senha.",
+        reset_token=reset_token,  # DEV: devolvendo pra você testar
+    )
+
+
+
+
+@router.post("/reset-password", response_model=ResetPasswordOut)
+async def reset_password(payload: ResetPasswordIn, db: AsyncSession = Depends(get_db)):
+    # valida token
+    try:
+        token_data = jwt.decode(
+            payload.token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALG],
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token expirado. Solicite uma nova redefinição de senha.",
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token inválido.",
+        )
+
+    if token_data.get("scope") != "password_reset":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token inválido para redefinição de senha.",
+        )
+
+    user_id = token_data.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token inválido.",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user: User | None = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    user.senha_hash = hash_password(payload.senha)
+    await db.commit()
+
+    return ResetPasswordOut(
+        success=True,
+        message="Senha redefinida com sucesso. Já pode fazer login com a nova senha.",
+    )

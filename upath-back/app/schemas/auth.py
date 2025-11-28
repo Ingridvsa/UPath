@@ -6,6 +6,9 @@ from pydantic import (
     EmailStr,
     field_validator,
     StringConstraints,
+    Field,
+    AliasChoices,
+    ConfigDict,
 )
 
 NOME_RE = re.compile(r'^[A-Za-zÀ-ÿ\s]+$')
@@ -68,3 +71,32 @@ class LoginOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: Dict[str, Any]
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordOut(BaseModel):
+    success: bool = True
+    message: str
+    # em DEV vamos devolver o token pra você ver
+    reset_token: Optional[str] = None
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    senha: SenhaType
+    confirmSenha: str
+
+    @field_validator("confirmSenha")
+    @classmethod
+    def senhas_iguais(cls, v: str, info):
+      if v != info.data.get("senha"):
+          raise ValueError("Senhas não coincidem.")
+      return v
+
+
+class ResetPasswordOut(BaseModel):
+    success: bool = True
+    message: str
