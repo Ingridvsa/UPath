@@ -39,12 +39,7 @@ async def preview(
     admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Retorna dados reais para o gráfico e total de usuários.
-    Por enquanto implementamos apenas tipo='usuarios'.
-    """
     if tipo != "usuarios":
-        # se quiser, pode implementar outros tipos depois
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Tipo de relatório inválido. Use: 'usuarios' por enquanto.",
@@ -54,14 +49,13 @@ async def preview(
     agora = datetime.utcnow()
     data_inicial = agora - timedelta(days=dias)
 
-    # 1) Total de usuários no sistema
+    # 1) Total de usuários NO PERÍODO
     result_total = await db.execute(
-        select(func.count(User.id))
+        select(func.count(User.id)).where(User.criado_em >= data_inicial)
     )
     total_usuarios: int = result_total.scalar_one()
 
     # 2) Novos usuários por dia no período
-    # date_trunc('day', created_at) para agrupar por dia
     result_grafico = await db.execute(
         select(
             func.date_trunc("day", User.criado_em).label("dia"),
@@ -74,11 +68,9 @@ async def preview(
 
     rows = result_grafico.all()
 
-    # Monta labels e valores
     labels = []
     valores = []
     for dia, qtd in rows:
-        # dia é datetime, formata para exibição
         labels.append(dia.strftime("%d/%m"))
         valores.append(int(qtd))
 
@@ -94,6 +86,7 @@ async def preview(
             "tipo": tipo,
         },
     }
+
 
 
 @router.get("/metadata")

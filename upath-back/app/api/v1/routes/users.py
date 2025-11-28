@@ -5,7 +5,6 @@ router = APIRouter(prefix="/user", tags=["user"])
 
 @router.get("/home")
 async def home(user=Depends(get_current_user)):
-    # mock de cards
     cards = [
       {"titulo":"Sisu abre hoje", "descricao":"Confira prazos e notas", "imagem":"https://.../img1.jpg"},
       {"titulo":"Novas bolsas", "descricao":"Veja oportunidades", "imagem":"https://.../img2.jpg"}

@@ -140,9 +140,6 @@ async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(
         reset_token=reset_token,  # DEV: devolvendo pra você testar
     )
 
-
-
-
 @router.post("/reset-password", response_model=ResetPasswordOut)
 async def reset_password(payload: ResetPasswordIn, db: AsyncSession = Depends(get_db)):
     # valida token
@@ -262,3 +259,43 @@ async def update_me(
         },
     )
 
+
+@router.post("/admin-pin", response_model=AdminPinOut)
+async def validate_admin_pin(
+    payload: AdminPinIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Valida o PIN de administrador e garante que o usuário do e-mail é admin.
+    Endpoint final: POST /api/v1/auth/admin-pin
+    """
+
+    # 1) Busca usuário pelo e-mail
+    result = await db.execute(
+        select(User).where(User.email == payload.email.lower())
+    )
+    user: User | None = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado.",
+        )
+
+    if user.role != Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuário não é administrador.",
+        )
+
+    # 2) Confere o PIN (configurado em settings.ADMIN_PIN / .env)
+    if payload.pin != settings.ADMIN_PIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PIN inválido.",
+        )
+
+    return AdminPinOut(
+        success=True,
+        message="PIN validado com sucesso.",
+    )
