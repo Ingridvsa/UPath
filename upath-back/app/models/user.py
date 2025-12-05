@@ -1,47 +1,66 @@
 import enum
 import datetime
-import uuid
-
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Enum, Boolean, DateTime
-from sqlalchemy.dialects.postgresql import UUID
 from typing import Optional
-from sqlalchemy import String, Enum, Boolean, DateTime
+
+from sqlalchemy import String, Integer, DateTime, Enum as SAEnum
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
+class StatusConta(str, enum.Enum):
+    ativo = "ativo"
+    inativo = "inativo"
+    suspenso = "suspenso"
+
+
+# >>> Essa enum existe só pro restante do código que ainda espera "Role"
 class Role(str, enum.Enum):
     student = "student"
     admin = "admin"
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "usuario"
 
-    # id é UUID na tabela
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[int] = mapped_column(
+        "id_usuario",
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,        # gera uuid no app, caso o banco não tenha default
+        autoincrement=True,
     )
 
-    # 'nome' no código, 'full_name' na tabela
-    nome: Mapped[str] = mapped_column("full_name", String(120))
+    nome: Mapped[str] = mapped_column(String(150), nullable=False)
 
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    email: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
 
-    # 'senha_hash' no código, 'hashed_password' na tabela
-    senha_hash: Mapped[str] = mapped_column("hashed_password", String(255))
- 
-    # essa coluna ainda NÃO existe na tabela, vamos criar já já
-    role: Mapped[Role] = mapped_column(Enum(Role), default=Role.student)
+    # no banco está como CHAR(64)
+    senha_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-
-    # 'criado_em' no código, 'created_at' na tabela
-    criado_em: Mapped[datetime.datetime] = mapped_column(
-        "created_at",
-        DateTime(timezone=True),
+    data_cadastro: Mapped[datetime.datetime] = mapped_column(
+        DateTime,
         default=datetime.datetime.utcnow,
     )
+
+    status_conta: Mapped[StatusConta] = mapped_column(
+        SAEnum(StatusConta),
+        default=StatusConta.ativo,
+    )
+
+    # ---- Compatibilidade com o código antigo ----
+
+    @property
+    def role(self) -> Role:
+        # TEMP: enquanto não ligar com a tabela "perfil",
+        # todo mundo é tratado como "student"
+        return Role.student
+
+    @property
+    def is_active(self) -> bool:
+        # usa o status_conta do banco pra dizer se está ativo
+        return self.status_conta == StatusConta.ativo
