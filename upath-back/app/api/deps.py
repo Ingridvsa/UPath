@@ -1,25 +1,25 @@
 # app/api/deps.py
+from typing import AsyncGenerator
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-from app.core.config import settings
-from app.db.session import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 
-bearer = HTTPBearer(auto_error=True)
+from app.db.session import get_db
+from app.api.v1.routes.auth import get_current_user
+from app.models.user import User, Role
 
-async def db_dep() -> AsyncSession:
+
+async def db_dep() -> AsyncGenerator[AsyncSession, None]:
     async for s in get_db():
         yield s
 
-def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)):
-    try:
-        payload = jwt.decode(creds.credentials, settings.JWT_SECRET, algorithms=[settings.JWT_ALG])
-        return payload  # {"sub": email, "role": "..."}
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
 
-def require_admin(user=Depends(get_current_user)):
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Acesso negado")
-    return user
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Garante que o usuário autenticado é admin.
+    """
+    if current_user.role != Role.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado",
+        )
+    return current_user

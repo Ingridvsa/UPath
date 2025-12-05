@@ -8,6 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import OAuth2PasswordBearer
 
+import secrets
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 from app.db.session import get_db
 from app.core.config import settings
 from app.schemas.auth import (
@@ -92,6 +96,90 @@ async def login(payload: LoginIn, db: AsyncSession = Depends(get_db)):
             detail="Usuário inativo.",
         )
 
+    token = create_access_token(sub=str(user.id), role=user.role.value)
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(user.id),
+            "nome": user.nome,
+            "email": user.email,
+            "role": user.role.value,
+        },
+    }
+
+# ---------- LOGIN COM GOOGLE ---------- #
+
+@router.post("/google", response_model=LoginOut)
+async def login_google(body: dict, db: AsyncSession = Depends(get_db)):
+    """
+    Recebe { "token": "<id_token_google>" } do front,
+    valida no Google e loga/cria o usuário.
+    """
+    raw_token = body.get("token")
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token do Google não enviado.",
+        )
+
+    try:
+        # valida o id_token com o CLIENT_ID da sua aplicação
+        idinfo = id_token.verify_oauth2_token(
+            raw_token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token do Google inválido.",
+        )
+
+    # garantimos emissor válido
+    if idinfo.get("iss") not in (
+        "accounts.google.com",
+        "https://accounts.google.com",
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Emissor do token inválido.",
+        )
+
+    email = (idinfo.get("email") or "").lower()
+    nome = idinfo.get("name") or idinfo.get("given_name") or "Usuário Google"
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível obter o e-mail do Google.",
+        )
+
+    # procura usuário pelo e-mail
+    result = await db.execute(select(User).where(User.email == email))
+    user: User | None = result.scalar_one_or_none()
+
+    # se não existir, cria um student
+    if not user:
+        user = User(
+            nome=nome,
+            email=email,
+            # senha aleatória só pra não ficar em branco
+            senha_hash=hash_password(secrets.token_urlsafe(16)),
+            role=Role.student,
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuário inativo.",
+        )
+
+    # gera o mesmo JWT usado no login normal
     token = create_access_token(sub=str(user.id), role=user.role.value)
 
     return {
@@ -299,3 +387,4 @@ async def validate_admin_pin(
         success=True,
         message="PIN validado com sucesso.",
     )
+

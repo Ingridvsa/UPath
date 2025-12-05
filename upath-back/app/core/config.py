@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "UPath API"
     API_V1_PREFIX: str = "/api/v1"
     CORS_ORIGINS: List[str] = ["*"]
+    GOOGLE_CLIENT_ID: str = ""
 
     # aceita tanto DATABASE_URL quanto DB_URL
     DATABASE_URL: str = Field(validation_alias=AliasChoices("DATABASE_URL", "DB_URL"))
