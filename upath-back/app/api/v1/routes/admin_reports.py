@@ -31,7 +31,6 @@ def _periodo_para_dias(periodo: str) -> int:
         )
     return mapping[periodo]
 
-
 @router.get("/preview")
 async def preview(
     tipo: str,
@@ -50,20 +49,24 @@ async def preview(
     data_inicial = agora - timedelta(days=dias)
 
     # 1) Total de usuários NO PERÍODO
+    # 👉 Usa o atributo que existe no modelo: User.criado_em
     result_total = await db.execute(
-        select(func.count(User.id)).where(User.criado_em >= data_inicial)
+      select(func.count(User.id)).where(User.criado_em >= data_inicial)
     )
     total_usuarios: int = result_total.scalar_one()
 
     # 2) Novos usuários por dia no período
+    # 👉 Cria a expressão de dia uma vez e reaproveita
+    dia_expr = func.date_trunc("day", User.criado_em)
+
     result_grafico = await db.execute(
         select(
-            func.date_trunc("day", User.criado_em).label("dia"),
+            dia_expr.label("dia"),
             func.count(User.id).label("qtd"),
         )
         .where(User.criado_em >= data_inicial)
-        .group_by(func.date_trunc("day", User.criado_em))
-        .order_by(func.date_trunc("day", User.criado_em))
+        .group_by(dia_expr)
+        .order_by(dia_expr)
     )
 
     rows = result_grafico.all()
