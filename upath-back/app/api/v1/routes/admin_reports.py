@@ -57,7 +57,7 @@ async def preview(
 
     # 2) Novos usuários por dia no período
     # 👉 Cria a expressão de dia uma vez e reaproveita
-    dia_expr = func.date_trunc("day", User.criado_em)
+    dia_expr = func.date(User.criado_em)
 
     result_grafico = await db.execute(
         select(
@@ -68,6 +68,7 @@ async def preview(
         .group_by(dia_expr)
         .order_by(dia_expr)
     )
+
 
     rows = result_grafico.all()
 
