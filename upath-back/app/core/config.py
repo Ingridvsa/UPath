@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
 
     # aceita tanto DATABASE_URL quanto DB_URL
-    DATABASE_URL: str = Field(validation_alias=AliasChoices("DATABASE_URL", "DB_URL"))
+    DATABASE_URL: str = Field(validation_alias=AliasChoices("DATABASE_URL"))
 
     # JWT / Auth
     # SECRET_KEY do .env vai preencher JWT_SECRET

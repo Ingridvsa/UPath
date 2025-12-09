@@ -55,8 +55,6 @@ async def preview(
     )
     total_usuarios: int = result_total.scalar_one()
 
-    # 2) Novos usuários por dia no período
-    # 👉 Cria a expressão de dia uma vez e reaproveita
     dia_expr = func.date_trunc("day", User.criado_em)
 
     result_grafico = await db.execute(
