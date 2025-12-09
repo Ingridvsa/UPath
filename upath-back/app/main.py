@@ -1,6 +1,7 @@
 # main.py
 import sys
 import asyncio
+from fastapi.middleware.cors import CORSMiddleware
 
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -14,9 +15,15 @@ from app.api.v1.routes import admin_reports
 app = FastAPI(title=settings.PROJECT_NAME)
 
 # CORS
+
+origins = [
+    "http://localhost:5173",             # para rodar local
+    "https://upath-front.onrender.com/login",   # domínio do front no Render
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
